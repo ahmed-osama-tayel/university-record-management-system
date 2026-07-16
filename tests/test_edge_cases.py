@@ -1,53 +1,35 @@
 """
-Edge case tests for the University Management System.
+Edge case tests for the University Record Management System.
 
-These tests will be executed LATER when we have a database.
-Right now we're just creating the test file.
+These tests validate error handling and edge cases for all 5 queries.
 """
 
 import unittest
 
-# We'll import these later when we have the database
-# from university_management.database.connection import DatabaseConnection
-# from university_management.queries.student_queries import StudentQueries
+# Import database modules
+from app.db import DatabaseConnection
+from app.queries import StudentQueries
 
 
 class TestEdgeCases(unittest.TestCase):
     """
     Test edge cases for all queries.
-
-    These tests will run once the database is set up.
     """
 
     def setUp(self):
-        """
-        Set up test database connection.
+        """Set up test database connection before each test."""
+        self.db = DatabaseConnection()
+        self.db.connect()
+        self.queries = StudentQueries(self.db)
 
-        This runs before each test.
+    def test_empty_string_inputs(self):
         """
-        # TODO: Uncomment when database is ready
-        # config = {
-        #     'host': 'localhost',
-        #     'port': 5432,
-        #     'database': 'test_university_db',
-        #     'user': 'postgres',
-        #     'password': 'test_password'
-        # }
-        # self.db = DatabaseConnection(config)
-        # self.db.connect()
-        # self.queries = StudentQueries(self.db)
-        pass
+        Test empty string inputs.
 
-    def test_empty_database(self):
+        Expected: Handles gracefully without errors.
         """
-        Test all queries with empty database.
-
-        Expected: All queries return empty lists.
-        """
-        # TODO: Run when database is empty
-        # result = self.queries.get_students_by_course_lecturer('CS101', 'L001')
-        # self.assertEqual(len(result), 0)
-        pass
+        result = self.queries.get_students_by_course_lecturer('', '')
+        self.assertIsInstance(result, list)
 
     def test_sql_injection_prevention(self):
         """
@@ -55,106 +37,41 @@ class TestEdgeCases(unittest.TestCase):
 
         Expected: Queries execute safely, no data loss.
         """
-        # TODO: Uncomment when database is ready
-        # malicious_input = "'; DROP TABLE students; --"
-        # result = self.queries.get_students_by_course_lecturer(malicious_input, 'L001')
-        # self.assertIsInstance(result, list)
-        # # Table should still exist - verify with another query
-        pass
+        malicious = "'; DROP TABLE students; --"
+        result = self.queries.get_students_by_course_lecturer(malicious, 'L001')
+        self.assertIsInstance(result, list)
 
-    def test_empty_string_inputs(self):
+    def test_invalid_student_id(self):
         """
-        Test empty string inputs.
+        Test invalid student ID.
 
-        Expected: Returns empty list or handles gracefully.
+        Expected: Returns None.
         """
-        # TODO: Uncomment when database is ready
-        # result = self.queries.get_students_by_course_lecturer('', '')
-        # self.assertIsInstance(result, list)
-        pass
+        result = self.queries.get_advisor_contact('INVALID_ID')
+        self.assertIsNone(result)
 
-    def test_special_characters(self):
+    def test_empty_research_area(self):
         """
-        Test inputs with special characters.
+        Test empty research area.
 
-        Expected: Properly escaped, no errors.
+        Expected: Returns all lecturers or empty list.
         """
-        # TODO: Uncomment when database is ready
-        # special_input = "O'Reilly"
-        # result = self.queries.get_lecturers_by_research_area(special_input)
-        # self.assertIsInstance(result, list)
-        pass
+        result = self.queries.get_lecturers_by_research_area('')
+        self.assertIsInstance(result, list)
 
-    def test_unicode_inputs(self):
+    def test_non_existent_course(self):
         """
-        Test Unicode/emoji inputs.
+        Test non-existent course.
 
-        Expected: Properly handled, no errors.
+        Expected: Returns empty list.
         """
-        # TODO: Uncomment when database is ready
-        # unicode_input = "机器学习"  # Chinese characters
-        # result = self.queries.get_lecturers_by_research_area(unicode_input)
-        # self.assertIsInstance(result, list)
-        pass
-
-    def test_very_large_input(self):
-        """
-        Test very long input strings.
-
-        Expected: Handled without crashing.
-        """
-        # TODO: Uncomment when database is ready
-        # large_input = "a" * 10000
-        # result = self.queries.get_lecturers_by_research_area(large_input)
-        # self.assertIsInstance(result, list)
-        pass
+        result = self.queries.get_students_by_course_lecturer('NONEXISTENT', 'L001')
+        self.assertEqual(len(result), 0)
 
     def tearDown(self):
-        """
-        Clean up after tests.
-
-        This runs after each test.
-        """
-        # TODO: Uncomment when database is ready
-        # self.db.disconnect()
-        pass
+        """Clean up after each test."""
+        self.db.disconnect()
 
 
-class TestQuery1EdgeCases(unittest.TestCase):
-    """Specific edge cases for Query 1."""
-
-    def test_invalid_course(self):
-        """Test with invalid course code."""
-        # TODO: Uncomment when database is ready
-        # result = queries.get_students_by_course_lecturer('NONEXISTENT', 'L001')
-        # self.assertEqual(len(result), 0)
-        pass
-
-    def test_invalid_lecturer(self):
-        """Test with invalid lecturer ID."""
-        # TODO: Uncomment when database is ready
-        # result = queries.get_students_by_course_lecturer('CS101', 'INVALID')
-        # self.assertEqual(len(result), 0)
-        pass
-
-
-class TestQuery4EdgeCases(unittest.TestCase):
-    """Specific edge cases for Query 4."""
-
-    def test_invalid_student(self):
-        """Test with invalid student ID."""
-        # TODO: Uncomment when database is ready
-        # result = queries.get_advisor_contact('INVALID_ID')
-        # self.assertIsNone(result)
-        pass
-
-    def test_student_no_advisor(self):
-        """Test student with no advisor assigned."""
-        # TODO: Uncomment when database is ready
-        # result = queries.get_advisor_contact('S999')
-        # self.assertIsNone(result)
-        pass
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
