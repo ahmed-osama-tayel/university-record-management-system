@@ -1,77 +1,67 @@
+"""Edge case tests for the query layer.
+
+These tests mock ``app.db.run_query`` so they run without a live
+database, mirroring the approach in ``tests/test_queries.py``. They
+check that the query functions pass their inputs through safely as
+parameters (so hostile input cannot alter the SQL) and return whatever
+``run_query`` yields, including the empty result set.
 """
-Edge case tests for the University Record Management System.
+from unittest import mock
 
-These tests validate error handling and edge cases for all 5 queries.
-"""
-
-import unittest
-
-# Import database modules
-from app.db import DatabaseConnection
-from app.queries import StudentQueries
+from app import queries
 
 
-class TestEdgeCases(unittest.TestCase):
-    """
-    Test edge cases for all queries.
-    """
+@mock.patch("app.db.run_query")
+def test_empty_string_inputs_are_passed_through(run_query):
+    run_query.return_value = (["Student ID"], [])
 
-    def setUp(self):
-        """Set up test database connection before each test."""
-        self.db = DatabaseConnection()
-        self.db.connect()
-        self.queries = StudentQueries(self.db)
+    columns, rows = queries.students_in_course_by_lecturer("", "")
 
-    def test_empty_string_inputs(self):
-        """
-        Test empty string inputs.
-
-        Expected: Handles gracefully without errors.
-        """
-        result = self.queries.get_students_by_course_lecturer('', '')
-        self.assertIsInstance(result, list)
-
-    def test_sql_injection_prevention(self):
-        """
-        Test SQL injection attempts.
-
-        Expected: Queries execute safely, no data loss.
-        """
-        malicious = "'; DROP TABLE students; --"
-        result = self.queries.get_students_by_course_lecturer(malicious, 'L001')
-        self.assertIsInstance(result, list)
-
-    def test_invalid_student_id(self):
-        """
-        Test invalid student ID.
-
-        Expected: Returns None.
-        """
-        result = self.queries.get_advisor_contact('INVALID_ID')
-        self.assertIsNone(result)
-
-    def test_empty_research_area(self):
-        """
-        Test empty research area.
-
-        Expected: Returns all lecturers or empty list.
-        """
-        result = self.queries.get_lecturers_by_research_area('')
-        self.assertIsInstance(result, list)
-
-    def test_non_existent_course(self):
-        """
-        Test non-existent course.
-
-        Expected: Returns empty list.
-        """
-        result = self.queries.get_students_by_course_lecturer('NONEXISTENT', 'L001')
-        self.assertEqual(len(result), 0)
-
-    def tearDown(self):
-        """Clean up after each test."""
-        self.db.disconnect()
+    run_query.assert_called_once_with(
+        queries.STUDENTS_IN_COURSE_BY_LECTURER, ("", "%%"),
+    )
+    assert rows == []
 
 
-if __name__ == '__main__':
-    unittest.main()
+@mock.patch("app.db.run_query")
+def test_malicious_input_is_parameterised_not_interpolated(run_query):
+    run_query.return_value = (["Student ID"], [])
+    malicious = "'; DROP TABLE students; --"
+
+    queries.students_in_course_by_lecturer(malicious, "Smith")
+
+    called_sql, called_params = run_query.call_args[0]
+    # the payload travels as a bound parameter, never inside the SQL text
+    assert malicious not in called_sql
+    assert called_params[0] == malicious
+
+
+@mock.patch("app.db.run_query")
+def test_unknown_course_returns_empty_result(run_query):
+    run_query.return_value = (["Student ID"], [])
+
+    columns, rows = queries.students_in_course_by_lecturer(
+        "NONEXISTENT", "Nobody",
+    )
+
+    assert rows == []
+
+
+@mock.patch("app.db.run_query")
+def test_empty_research_area_wildcards_to_match_all(run_query):
+    run_query.return_value = (["Lecturer ID"], [])
+
+    queries.lecturers_by_expertise("")
+
+    run_query.assert_called_once_with(
+        queries.LECTURERS_BY_EXPERTISE, ("%%",),
+    )
+
+
+@mock.patch("app.db.run_query")
+def test_unknown_student_advisor_returns_empty(run_query):
+    run_query.return_value = (["Student"], [])
+
+    columns, rows = queries.student_advisor_contact("No Such Person")
+
+    assert rows == []
